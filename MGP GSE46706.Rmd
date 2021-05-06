@@ -1,7 +1,7 @@
 ---
-title: "MGP GSE5392"
+title: "MGP GSE46706"
 author: "Keon Arbabi"
-date: "16/04/2021"
+date: "06/05/2021"
 output: html_document
 ---
 
@@ -52,48 +52,42 @@ library(broom)
 ```{r, message=FALSE, warning=FALSE}
 
 # load series and platform data from GEO
-
-gset = getGEO("GSE5392", GSEMatrix =TRUE, AnnotGPL=TRUE)
-if (length(gset) > 1) idx = grep("GPL96", attr(gset, "names")) else idx = 1
+gset = getGEO("GSE60862", GSEMatrix = TRUE, getGPL = FALSE)
+if (length(gset) > 1) idx = grep("GPL5175", attr(gset, "names")) else idx = 1
 gset = gset[[idx]]
 
-# make proper column names to match toptable 
-fvarLabels(gset) = make.names(fvarLabels(gset))
-
-# group membership for all samples
-gsms = paste0("00000000000000000000000000000011111111111111111111",
-        "11111111111000000000011111111111")
-sml = strsplit(gsms, split="")[[1]]
-
-# log2 transformation
 ex = exprs(gset)
+# log2 transform
 qx = as.numeric(quantile(ex, c(0., 0.25, 0.5, 0.75, 0.99, 1.0), na.rm=T))
 LogC = (qx[5] > 100) ||
           (qx[6]-qx[1] > 50 && qx[2] > 0)
 if (LogC) { ex[which(ex <= 0)] = NaN
-  exprs(gset) = log2(ex) }
+  ex = log2(ex) }
 
-# assign samples to groups and set up design matrix
-gs = factor(sml)
-groups = make.names(c("BD","CTRL"))
-levels(gs) = groups
-gset$group = gs
-design = model.matrix(~group + 0, gset)
-colnames(design) = levels(gs)
+# box-and-whisker plot
+dev.new(width=3+ncol(gset)/6, height=5)
+par(mar=c(7,4,2,1))
+title = paste ("GSE60862", "/", annotation(gset), sep ="")
+boxplot(ex, boxwex=0.7, notch=T, main=title, outline=FALSE, las=2)
+dev.off()
 
-fit = lmFit(gset, design)  # fit linear model
+# expression value distribution plot
+par(mar=c(4,4,2,1))
+title = paste ("GSE60862", "/", annotation(gset), " value distribution", sep ="")
+plotDensities(ex, main=title, legend=F)
 
-# set up contrasts of interest and recalculate model coefficients
-cts = paste(groups[1], groups[2], sep="-")
-cont.matrix = makeContrasts(contrasts=cts, levels=design)
-fit2 = contrasts.fit(fit, cont.matrix)
+# mean-variance trend
+ex = na.omit(ex) # eliminate rows with NAs
+plotSA(lmFit(ex), main="Mean variance trend, GSE60862")
 
-# compute statistics and table of top significant genes
-fit2 = eBayes(fit2, 0.01)
-tT = topTable(fit2, adjust="fdr", sort.by="B", number=250)
+# UMAP plot (multi-dimensional scaling)
+ex = ex[!duplicated(ex), ]  # remove duplicates
+ump = umap(t(ex), n_neighbors = 15, random_state = 123)
+plot(ump$layout, main="UMAP plot, nbrs=15", xlab="", ylab="", pch=20, cex=1.5)
+library("maptools")  # point labels without overlaps
+pointLabel(ump$layout, labels = rownames(ump$layout), method="SANN", cex=0.6)
 
-tT = subset(tT, select=c("ID","adj.P.Val","P.Value","t","B","logFC","Gene.symbol","Gene.title"))
-knitr::kable(tT)
+
 
 ```
 
