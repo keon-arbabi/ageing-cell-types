@@ -62,40 +62,16 @@ Probe group file: HuEx-1_0-st-v2.r2.pgf
 
 ```{r, message=FALSE, warning=FALSE}
 
-# load series and platform data from GEO
-gset = getGEO("GSE60862", GSEMatrix =TRUE, AnnotGPL=FALSE)
-if (length(gset) > 1) idx = grep("GPL5175", attr(gset, "names")) else idx = 1
-gset = gset[[idx]]
+# # load series and platform data from GEO
+# gset = getGEO("GSE36192", GSEMatrix =TRUE, AnnotGPL=TRUE)
+# if (length(gset) > 1) idx = grep("GPL6947", attr(gset, "names")) else idx = 1
+# gset = gset[[idx]]
 
-# # make proper column names to match toptable 
+# make proper column names to match toptable 
 fvarLabels(gset) = make.names(fvarLabels(gset))
 
 # group membership for all samples
-gsms = paste0("00001111223344445556667777888999900000000000111111",
-        "11111222222222233333344444444444555555555566666666",
-        "67777777777788888888899999999999000000000111111111",
-        "12222222222333333333444444444555555555666666677777",
-        "77788888888899999999990000000000000000000000000000",
-        "00000000000000000000000000000011111111111111111111",
-        "11111111111111111111111111111111111111222222222222",
-        "22222222222222222222222222222222222222222222233333",
-        "33333333333333333333333333333333333333333333333333",
-        "34444444444444444444444444444444444444444444444444",
-        "44444444455555555555555555555555555555555555555555",
-        "55555555555555555566666666666666666666666666666666",
-        "66666666666677777777777777777777777777777777777777",
-        "77777777777777788888888888888888888888888888888888",
-        "88888888888888888888889999999999999999999999999999",
-        "99999999999999999999999999999000000001111222223333",
-        "33444444555555556666667777777788888888999999990000",
-        "00000001111111111122222222222333333333334444444444",
-        "45555555555566666666777777777788888888889999999999",
-        "90000001111122222333333444444555555666677778888889",
-        "99999000000111111222222333333444444555555666677777",
-        "78888889999990000111122223333444455556666777788899",
-        "99000011112222333344445555666777788889999000111233",
-        "34445566677788899900000011111112222222333333444444",
-        "4555555566666677778888889999999")
+gsms = "undefined"
 sml = strsplit(gsms, split="")[[1]]
 
 # log2 transformation
@@ -108,7 +84,7 @@ if (LogC) { ex[which(ex <= 0)] = NaN
 
 # assign samples to groups and set up design matrix
 gs = factor(sml)
-groups = make.names(c("cerebellar cortex","frontal cortex","hippocampus","medulla","occipital cortex","putamen","substantia nigra","temporal cortex","thalamus","white matter"))
+groups = make.names(c("undefined"))
 levels(gs) = groups
 gset$group = gs
 design = model.matrix(~group + 0, gset)
@@ -125,15 +101,15 @@ fit2 = contrasts.fit(fit, cont.matrix)
 fit2 = eBayes(fit2, 0.01)
 tT = topTable(fit2, adjust="fdr", sort.by="B", number=250)
 
-tT = subset(tT, select=c("ID","adj.P.Val","P.Value","F","GB_LIST","SPOT_ID","RANGE_GB","RANGE_STRAND","RANGE_START"))
-#write.table(tT, file=stdout(), row.names=F, sep="\t")
+tT = subset(tT, select=c("ID","adj.P.Val","P.Value","F","Gene.symbol","Gene.title"))
+write.table(tT, file=stdout(), row.names=F, sep="\t")
 
 # Visualize and quality control test results.
 # Build histogram of P-values for all genes. Normal test
 # assumption is that most genes are not differentially expressed.
 tT2 = topTable(fit2, adjust="fdr", sort.by="B", number=Inf)
 hist(tT2$adj.P.Val, col = "grey", border = "white", xlab = "P-adj",
-  ylab = "Number of genes", main = "P-adj value distribution", bins =1000)
+  ylab = "Number of genes", main = "P-adj value distribution")
 
 # summarize test results as "up", "down" or "not expressed"
 dT = decideTests(fit2, adjust.method="fdr", p.value=0.05)
@@ -158,33 +134,32 @@ abline(h=0)
 ex = exprs(gset)
 
 # box-and-whisker plot
-dev.new(width=3+ncol(gset)/6, height=5)
 ord = order(gs)  # order samples by group
 palette(c("#1B9E77", "#7570B3", "#E7298A", "#E6AB02", "#D95F02",
           "#66A61E", "#A6761D", "#B32424", "#B324B3", "#666666"))
 par(mar=c(7,4,2,1))
-title = paste ("GSE60862", "/", annotation(gset), sep ="")
+title = paste ("GSE36192", "/", annotation(gset), sep ="")
 boxplot(ex[,ord], boxwex=0.6, notch=T, main=title, outline=FALSE, las=2, col=gs[ord])
 legend("topleft", groups, fill=palette(), bty="n")
-dev.off()
 
 # expression value distribution
 par(mar=c(4,4,2,1))
-title = paste ("GSE60862", "/", annotation(gset), " value distribution", sep ="")
+title = paste ("GSE36192", "/", annotation(gset), " value distribution", sep ="")
 plotDensities(ex, group=gs, main=title, legend ="topright")
 
 # UMAP plot (dimensionality reduction)
 ex = na.omit(ex) # eliminate rows with NAs
 ex = ex[!duplicated(ex), ]  # remove duplicates
-ump = umap(t(ex), n_neighbors = 15, random_state = 123)
+ump = umap(t(ex), n_neighbors = 4, random_state = 123)
 par(mar=c(3,3,2,6), xpd=TRUE)
-plot(ump$layout, main="UMAP plot, nbrs=15", xlab="", ylab="", col=gs, pch=20, cex=1.5)
+plot(ump$layout, main="UMAP plot, nbrs=4", xlab="", ylab="", col=gs, pch=20, cex=1.5)
 legend("topright", inset=c(-0.15,0), legend=levels(gs), pch=20,
 col=1:nlevels(gs), title="Group", pt.cex=1.5)
-#pointLabel(ump$layout, labels = rownames(ump$layout), method="SANN", cex=0.6)
+library("maptools")  # point labels without overlaps
+pointLabel(ump$layout, labels = rownames(ump$layout), method="SANN", cex=0.6)
 
 # mean-variance trend, helps to see if precision weights are needed
-plotSA(fit2, main="Mean variance trend, GSE60862")
+plotSA(fit2, main="Mean variance trend, GSE36192")
 
 
 ```
