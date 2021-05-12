@@ -9,20 +9,12 @@ output:
 
 # Knitr settings 
 
-```{r setup, include=FALSE}
 
-library(knitr) 
-# For formatting the document
-knitr::opts_chunk$set(warning = FALSE)
-knitr::opts_chunk$set(message = FALSE)
-# Set working directory
-knitr::opts_knit$set(root.dir = ("C:/Users/arbabik/Downloads/CAMH R/ageing-cell-types/"))
-
-```
 
 # Load packages 
 
-```{r, message=FALSE, warning=FALSE}
+
+```r
 # # Installs packages from Bioconductor
 # BiocManager::install("GEOquery")
 # BiocManager::install("edgeR")
@@ -49,7 +41,6 @@ library(cowplot)
 library(broom)
 library(annotationTools)
 library(maptools)
-
 ```
 
 # Load data
@@ -60,8 +51,8 @@ Probe group file: HuEx-1_0-st-v2.r2.pgf
 "Transcript assignments are based on genome build hg19"
 "Core exons only are included in this analysis" 
 
-```{r, message=FALSE, warning=FALSE}
 
+```r
 # load series and platform data from GEO
 gset = getGEO("GSE60862", GSEMatrix =TRUE, AnnotGPL=FALSE)
 if (length(gset) > 1) idx = grep("GPL5175", attr(gset, "names")) else idx = 1
@@ -134,25 +125,52 @@ tT = subset(tT, select=c("ID","adj.P.Val","P.Value","F","GB_LIST","SPOT_ID","RAN
 tT2 = topTable(fit2, adjust="fdr", sort.by="B", number=Inf)
 hist(tT2$adj.P.Val, col = "grey", border = "white", xlab = "P-adj",
   ylab = "Number of genes", main = "P-adj value distribution", bins =1000)
+```
 
+![](MGP-GSE46706_files/figure-html/unnamed-chunk-2-1.png)<!-- -->
+
+```r
 # summarize test results as "up", "down" or "not expressed"
 dT = decideTests(fit2, adjust.method="fdr", p.value=0.05)
 
 # create Q-Q plot for t-statistic
 t.good = which(!is.na(fit2$F)) # filter out bad probes
 qqt(fit2$t[t.good], fit2$df.total[t.good], main="Moderated t statistic")
+```
 
+![](MGP-GSE46706_files/figure-html/unnamed-chunk-2-2.png)<!-- -->
+
+```r
 # volcano plot (log P-value vs log fold change)
 colnames(fit2) # list contrast names
+```
+
+```
+##  [1] "cerebellar.cortex-frontal.cortex" "frontal.cortex-hippocampus"      
+##  [3] "hippocampus-medulla"              "medulla-occipital.cortex"        
+##  [5] "occipital.cortex-putamen"         "putamen-substantia.nigra"        
+##  [7] "substantia.nigra-temporal.cortex" "temporal.cortex-thalamus"        
+##  [9] "thalamus-white.matter"            "white.matter-cerebellar.cortex"
+```
+
+```r
 ct = 1        # choose contrast of interest
 volcanoplot(fit2, coef=ct, main=colnames(fit2)[ct], pch=20,
   highlight=length(which(dT[,ct]!=0)), names=rep('+', nrow(fit2)))
+```
 
+![](MGP-GSE46706_files/figure-html/unnamed-chunk-2-3.png)<!-- -->
+
+```r
 # MD plot (log fold change vs mean log expression)
 # highlight statistically significant (p-adj < 0.05) probes
 plotMD(fit2, column=ct, status=dT[,ct], legend=F, pch=20, cex=1)
 abline(h=0)
+```
 
+![](MGP-GSE46706_files/figure-html/unnamed-chunk-2-4.png)<!-- -->
+
+```r
 ################################################################
 # General expression data analysis
 ex = exprs(gset)
@@ -167,12 +185,23 @@ title = paste ("GSE60862", "/", annotation(gset), sep ="")
 boxplot(ex[,ord], boxwex=0.6, notch=T, main=title, outline=FALSE, las=2, col=gs[ord])
 legend("topleft", groups, fill=palette(), bty="n")
 dev.off()
+```
 
+```
+## png 
+##   2
+```
+
+```r
 # expression value distribution
 par(mar=c(4,4,2,1))
 title = paste ("GSE60862", "/", annotation(gset), " value distribution", sep ="")
 plotDensities(ex, group=gs, main=title, legend ="topright")
+```
 
+![](MGP-GSE46706_files/figure-html/unnamed-chunk-2-5.png)<!-- -->
+
+```r
 # UMAP plot (dimensionality reduction)
 ex = na.omit(ex) # eliminate rows with NAs
 ex = ex[!duplicated(ex), ]  # remove duplicates
@@ -181,18 +210,23 @@ par(mar=c(3,3,2,6), xpd=TRUE)
 plot(ump$layout, main="UMAP plot, nbrs=15", xlab="", ylab="", col=gs, pch=20, cex=1.5)
 legend("topright", inset=c(-0.15,0), legend=levels(gs), pch=20,
 col=1:nlevels(gs), title="Group", pt.cex=1.5)
+```
+
+![](MGP-GSE46706_files/figure-html/unnamed-chunk-2-6.png)<!-- -->
+
+```r
 #pointLabel(ump$layout, labels = rownames(ump$layout), method="SANN", cex=0.6)
 
 # mean-variance trend, helps to see if precision weights are needed
 plotSA(fit2, main="Mean variance trend, GSE60862")
-
-
 ```
+
+![](MGP-GSE46706_files/figure-html/unnamed-chunk-2-7.png)<!-- -->
 
 # Build data frames
 
-```{r, message=FALSE, warning=FALSE}
 
+```r
 # Build sample metadata
 data_meta = pData(gset)
 data_meta = data.frame(geo_accession = gset$geo_accession,
@@ -210,8 +244,19 @@ data_meta %<>% mutate_at(c("age_years","pmi","rin","ph"), ~as.numeric(as.charact
 ggplot(data_meta %>% filter(region == "frontal cortex"), aes(age_years)) + 
   geom_histogram(bins = 50) +
   theme_bw()
-paste("frontal cortex individuals:", nrow(data_meta %>% filter(region == "frontal cortex")))
+```
 
+![](MGP-GSE46706_files/figure-html/unnamed-chunk-3-1.png)<!-- -->
+
+```r
+paste("frontal cortex individuals:", nrow(data_meta %>% filter(region == "frontal cortex")))
+```
+
+```
+## [1] "frontal cortex individuals: 127"
+```
+
+```r
 # Grab probe annotations
 if(is(gset,"ExpressionSet")) {
 	y = get("exprs",env=gset@assayData)
@@ -257,13 +302,12 @@ data_comb = data_exp %>%
   rownames_to_column(var = "geo_accession")
 
 data_comb = inner_join(data_meta, data_comb, by = 'geo_accession')
-  
 ```
 
 # Cell type proportion estimation
 
-```{r, message=FALSE, warning=FALSE}
 
+```r
 # Filter data
 data_working = data_comb %>% filter(region == "frontal cortex") %>%
   column_to_rownames(var = "geo_accession") %>%
@@ -296,9 +340,26 @@ marker_data$class[is.na(marker_data$class)] = "NonN"
 
 paste("marker matches in data: ", length(intersect(unlist(data_working$Gene.Symbol), unlist(marker_data$gene))), "/",
       nrow(marker_data))
+```
 
+```
+## [1] "marker matches in data:  1510 / 1954"
+```
+
+```r
 # Get vector of unique cell types 
 (cell_types = marker_data$subclass %>% unique())
+```
+
+```
+##  [1] "Inh_LAMP5"        "Astrocyte"        "VLMC"             "Oligodendrocyte" 
+##  [5] "Endothelial"      "Exc_L5_ET"        "Inh_PAX6"         "Exc_L5/6_IT_Car3"
+##  [9] "Microglia"        "Pericyte"         "Inh_VIP"          "Exc_L6_CT"       
+## [13] "OPC"              "Exc_IT"           "Exc_L6b"          "Inh_PVALB"       
+## [17] "Exc_L5/6_NP"      "Inh_SST"          "Exc_L4_IT"
+```
+
+```r
 # Organize markers into a list 
 marker_list = lapply(cell_types, function(cell_type){
   return(marker_data %>% filter(subclass == cell_type) %>% pull(gene) %>% unlist())
@@ -317,7 +378,13 @@ estimations =  mgpEstimate(
   removeMinority = TRUE)
 # Lost cell types 
 setdiff(cell_types, names(estimations$estimates))
+```
 
+```
+## character(0)
+```
+
+```r
 # Merge cell type proportions with sample metadata
 mgp_estimates = as.data.frame(estimations$estimates) %>%
   rownames_to_column(var = "geo_accession")
@@ -339,13 +406,14 @@ for(i in 1:length(plot_genes)){
     theme_bw()
 }
 plot_grid(plotlist = plot_list, nrow = 1)
-
 ```
+
+![](MGP-GSE46706_files/figure-html/unnamed-chunk-4-1.png)<!-- -->
 
 # Linear models
 
-```{r, message=FALSE, warning=FALSE}
 
+```r
 # Linear models where cell_type_prop ~ sex + rin + pmi + age_years`
 lm_df = mgp_df %>%
   group_by(cell_type) %>%
@@ -379,8 +447,8 @@ beta_plot = lm_df %>%
   facet_wrap(~class, drop = T, scale = "free")
 
 beta_plot
-
-
 ```
+
+![](MGP-GSE46706_files/figure-html/unnamed-chunk-5-1.png)<!-- -->
 
 
