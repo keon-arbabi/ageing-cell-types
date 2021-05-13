@@ -118,7 +118,7 @@ fit2 = eBayes(fit2, 0.01)
 tT = topTable(fit2, adjust="fdr", sort.by="B", number=250)
 
 tT = subset(tT, select=c("ID","adj.P.Val","P.Value","t","B","logFC","Gene.symbol","Gene.title"))
-write.table(tT, file=stdout(), row.names=F, sep="\t")
+#write.table(tT, file=stdout(), row.names=F, sep="\t")
 
 # Visualize and quality control test results.
 # Build histogram of P-values for all genes. Normal test
