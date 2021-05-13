@@ -8,4 +8,4 @@ GSE36192: https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE36192
 
 GSE30272: https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE30272
 
-view .md files for code
+view .md files for code and figures
