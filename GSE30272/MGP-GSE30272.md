@@ -9,20 +9,12 @@ output:
 
 # Knitr settings 
 
-```{r setup, include=FALSE}
 
-library(knitr) 
-# For formatting the document
-knitr::opts_chunk$set(warning = FALSE)
-knitr::opts_chunk$set(message = FALSE)
-# Set working directory
-knitr::opts_knit$set(root.dir = ("C:/Users/arbabik/Downloads/CAMH R/ageing-cell-types/"))
-
-```
 
 # Load packages 
 
-```{r, message=FALSE, warning=FALSE}
+
+```r
 ## Installs packages from Bioconductor 
 # BiocManager::install("GEOquery")
 # BiocManager::install("edgeR")
@@ -49,19 +41,24 @@ library(broom)
 library(annotationTools)
 library(maptools)
 library(RCurl)
-
 ```
 
 # Load and process metadata
 
-```{r, message=FALSE, warning=FALSE}
 
+```r
 # Download from GSE
 gset = getGEO(GEO = "GSE30272", filename = NULL, destdir = "./", GSElimits = NULL, GSEMatrix = TRUE, AnnotGPL = FALSE, getGPL = FALSE)
 # Unlist to get ExpressionSet object
 gset = gset[[1]]
 pData(gset)$data_processing[1]
+```
 
+```
+## [1] "Two color intensity data was imported, background subtracted, low intensities dropped, intensities converted to log2(sample/ref), ratios loess normalized, outliers dropped (>6 MADs), missing data from low intesity cut-off were imputed. Only the 30,176 probes (out of the total 49,152 on GPL4611) that passed all quality control and other filters were used. No \"cleaning\" procedure has been applied to these data - see \"Overall design\" and \"Supplemental Files\" for additional data."
+```
+
+```r
 # Get identifiers from pData
 data_meta = data.frame(geo_accession = gset$geo_accession,
                        sample_id = gset$title,
@@ -85,22 +82,40 @@ postnatal_samples = data_meta %>% filter(age_years > 15) %>% pull(sample_id)
 ggplot(data_meta, aes(age_years)) + 
   geom_histogram(bins = 100) +
   theme_bw()
+```
 
+![](MGP-GSE30272_files/figure-html/unnamed-chunk-2-1.png)<!-- -->
+
+```r
 ggplot(data_meta %>% filter(sample_id %in% postnatal_samples), aes(age_years)) + 
   geom_histogram(bins = 80) +
   theme_bw()
+```
 
+![](MGP-GSE30272_files/figure-html/unnamed-chunk-2-2.png)<!-- -->
+
+```r
 paste("sample age mean: ", mean(unlist(data_meta %>% filter(age_years > 15) %>% pull(age_years))))
-paste("sample age sd: ", sd(unlist(data_meta %>% filter(age_years > 15) %>% pull(age_years))))
+```
 
+```
+## [1] "sample age mean:  39.4626948121858"
+```
+
+```r
+paste("sample age sd: ", sd(unlist(data_meta %>% filter(age_years > 15) %>% pull(age_years))))
+```
+
+```
+## [1] "sample age sd:  16.8421875767115"
 ```
 
 # Load and process expression data
 
 This is a version of the data tuned by the original authors to identifying canonical patterns of gene expression across the lifespan (at the expense of individual variation). It expands on previous modeling (Colantuoni 2011, PMID: 22031444) of age patterns across the lifespan in several key ways (manuscript in preparation): 1) We applied splines to capture non-linear gene expression effects while ensuring patterns of gene expression are continuous across the lifespan. The previous analysis used age by decade interaction terms, which are not necessarily continuous. 2) We estimated and adjusted for a much higher number of SVs. The previous analysis used only 2 SVs, here we allowed SVA to automatically determine this number: 31 SVs were used. This much increased "cleaning" further tuned this dataset to age effects. Hence, this newly processed data should only be used for the estimation of canonical, mean patterns of expression across the lifetime. 3) We regressed out SVs while allowing the effects of age and mean gene expression (the intercept) to remain in the data. Previously, SVs were regressed out while ignoring possible correlation between SVs and age, potentially obscuring some age effects. Specifically, using SVA, we employ a 2nd degree basis spline with knots at birth, 1, 10, 20, and 50 years [8 degrees of freedom], i.e. a curve fit to expression across age within each age range between these knots. Each model also allowed an offset at birth, because there were no samples in the third trimester of fetal life
 
-```{r, message=FALSE, warning=FALSE}
 
+```r
 # Cleaned data provided by the authors https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE30272
 data_exp = read.csv(file = here("input", "GSE30272_ExprsMtxCleanedN269_31SVN.csv"))
 colnames(data_exp)[1] = "probe_id"
@@ -134,19 +149,35 @@ data_exp %<>% filter(probe_id %in% select.rows$group2row[,2]) %>%
 # box-and-whisker plot
 title = paste ("GSE30272", "/", annotation(gset), sep ="")
 boxplot(data_exp[-1], boxwex=0.7, notch=T, main=title, outline=FALSE, las=2)
+```
 
+![](MGP-GSE30272_files/figure-html/unnamed-chunk-3-1.png)<!-- -->
+
+```r
 # expression value distribution plot
 par(mar=c(4,4,2,1))
 title = paste ("GSE30272", "/", annotation(gset), " value distribution", sep ="")
 plotDensities(data_exp[-1], main=title, legend=F)
+```
 
+![](MGP-GSE30272_files/figure-html/unnamed-chunk-3-2.png)<!-- -->
+
+```r
 # mean-variance trend
 plotSA(lmFit(data_exp[-1]), main="Mean variance trend, GSE30272")
+```
 
+![](MGP-GSE30272_files/figure-html/unnamed-chunk-3-3.png)<!-- -->
+
+```r
 # UMAP plot (multi-dimensional scaling)
 ump = umap(t(data_exp[-1]), n_neighbors = 15, random_state = 123)
 plot(ump$layout, main="UMAP plot, nbrs=15", xlab="", ylab="", pch=20, cex=1.5)
+```
 
+![](MGP-GSE30272_files/figure-html/unnamed-chunk-3-4.png)<!-- -->
+
+```r
 # Merge gene expression and meta dataframes
 data_comb = data_exp %>%   
   column_to_rownames(var = "gene_name") %>%
@@ -155,13 +186,12 @@ data_comb = data_exp %>%
 
 data_comb = inner_join(data_meta, data_comb, by = 'sample_id')
 write_rds(data_comb, file = here("output", "GSE30272_out.rds"))
-
 ```
 
 # Cell type proportion estimation
 
-```{r, message=FALSE, warning=FALSE}
 
+```r
 # Load in marker genes
 marker_data = read.csv("https://github.com/sonnyc247/MarkerSelection/raw/master/Data/Outputs/CSVs_and_Tables/Markers/MTG_and_CgG_lfct2/new_MTGnCgG_lfct2.5_results.csv")
 
@@ -188,7 +218,13 @@ marker_data$class[is.na(marker_data$class)] = "NonN"
 
 paste("marker matches in data: ", length(intersect(unlist(data_exp$gene_name), unlist(marker_data$gene))), "/",
       nrow(marker_data))
+```
 
+```
+## [1] "marker matches in data:  944 / 1357"
+```
+
+```r
 # Get vector of unique cell types 
 cell_types = marker_data$subclass %>% unique()
 # Organize markers into a list 
@@ -209,7 +245,13 @@ estimations =  mgpEstimate(
   removeMinority = TRUE)
 # Lost cell types 
 setdiff(cell_types, names(estimations$estimates))
+```
 
+```
+## character(0)
+```
+
+```r
 # Merge cell type proportions with sample metadata
 mgp_estimates = as.data.frame(estimations$estimates) %>%
   rownames_to_column(var = "sample_id")
@@ -231,13 +273,14 @@ for(i in 1:length(plot_genes)){
     theme_bw()
 }
 plot_grid(plotlist = plot_list, nrow =1)
-
 ```
+
+![](MGP-GSE30272_files/figure-html/unnamed-chunk-4-1.png)<!-- -->
 
 # linear models
 
-```{r, message=FALSE, warning=FALSE}
 
+```r
 # Linear models where cell_type_prop ~ sex + rin + pmi + age_years`
 lm_df = mgp_df %>%
   group_by(cell_type) %>%
@@ -271,7 +314,8 @@ beta_plot = lm_df %>%
   facet_wrap(~class, drop = T, scale = "free")
 
 beta_plot
-
 ```
+
+![](MGP-GSE30272_files/figure-html/unnamed-chunk-5-1.png)<!-- -->
 
 
