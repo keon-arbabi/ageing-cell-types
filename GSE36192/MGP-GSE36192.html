@@ -585,7 +585,7 @@ data_comb = data_exp %&gt;%
   rownames_to_column(var = &quot;geo_accession&quot;)
 
 data_comb = inner_join(data_meta, data_comb, by = &#39;geo_accession&#39;)
-#write_rds(data_comb, file = here(&quot;output&quot;, &quot;GSE36192_out.rds&quot;))</code></pre>
+write_rds(data_comb, file = here(&quot;output&quot;, &quot;GSE36192_out.rds&quot;))</code></pre>
 </div>
 <div id="cell-type-proportion-estimation" class="section level1">
 <h1>Cell type proportion estimation</h1>
