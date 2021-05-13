@@ -252,7 +252,7 @@ data_comb = data_exp %>%
   rownames_to_column(var = "geo_accession")
 
 data_comb = inner_join(data_meta, data_comb, by = 'geo_accession')
-write_rds(data_comb, file = here("output", "GSE36192_out.csv"))
+write_rds(data_comb, file = here("output", "GSE36192_out.rds"))
   
 ```
 
