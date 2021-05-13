@@ -100,10 +100,10 @@ This is a version of the data tuned by the original authors to identifying canon
 ```{r, message=FALSE, warning=FALSE}
 
 # Cleaned data provided by the authors https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE30272
-data_exp = read.csv(file = here("data", "GSE30272_ExprsMtxCleanedN269_31SVN.csv"))
+data_exp = read.csv(file = here("input", "GSE30272_ExprsMtxCleanedN269_31SVN.csv"))
 colnames(data_exp)[1] = "probe_id"
 # Metadata annotating probe ids to genes https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GPL4611
-annot = read.csv(file = here("data", "GSE30272_annot.csv"))
+annot = read.csv(file = here("input", "GSE30272_annot.csv"))
 
 data_exp %<>% as.data.frame() %>%
   mutate(probe_id = as.character(probe_id)) %>%
@@ -152,7 +152,7 @@ data_comb = data_exp %>%
   rownames_to_column(var = "sample_id")
 
 data_comb = inner_join(data_meta, data_comb, by = 'sample_id')
-write_rds(data_comb, file = here("output", "GSE30272_out.rds"))
+#write_rds(data_comb, file = here("output", "GSE30272_out.rds"))
 
 ```
 
