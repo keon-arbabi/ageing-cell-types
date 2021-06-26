@@ -97,17 +97,45 @@ paste("sample age sd: ", sd(unlist(data_meta %>% filter(age_years > 15) %>% pull
 
 # Load and process expression data
 
-This is a version of the data tuned by the original authors to identifying canonical patterns of gene expression across the lifespan (at the expense of individual variation). It expands on previous modeling (Colantuoni 2011, PMID: 22031444) of age patterns across the lifespan in several key ways (manuscript in preparation): 1) We applied splines to capture non-linear gene expression effects while ensuring patterns of gene expression are continuous across the lifespan. The previous analysis used age by decade interaction terms, which are not necessarily continuous. 2) We estimated and adjusted for a much higher number of SVs. The previous analysis used only 2 SVs, here we allowed SVA to automatically determine this number: 31 SVs were used. This much increased "cleaning" further tuned this dataset to age effects. Hence, this newly processed data should only be used for the estimation of canonical, mean patterns of expression across the lifetime. 3) We regressed out SVs while allowing the effects of age and mean gene expression (the intercept) to remain in the data. Previously, SVs were regressed out while ignoring possible correlation between SVs and age, potentially obscuring some age effects. Specifically, using SVA, we employ a 2nd degree basis spline with knots at birth, 1, 10, 20, and 50 years [8 degrees of freedom], i.e. a curve fit to expression across age within each age range between these knots. Each model also allowed an offset at birth, because there were no samples in the third trimester of fetal life
-
 ```{r, message=FALSE, warning=FALSE}
 
-# Cleaned data provided by the authors https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE30272
-data_exp = read.csv(file = here("input", "GSE30272_ExprsMtxCleanedN269_31SVN.csv"))
-colnames(data_exp)[1] = "probe_id"
-# Metadata annotating probe ids to genes https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GPL4611
+# get expression
+ex = exprs(gset)
+# log2 transform
+qx = as.numeric(quantile(ex, c(0., 0.25, 0.5, 0.75, 0.99, 1.0), na.rm=T))
+LogC = (qx[5] > 100) ||
+          (qx[6]-qx[1] > 50 && qx[2] > 0)
+if (LogC) { ex[which(ex <= 0)] = NaN
+  ex = log2(ex) }
+
+# box-and-whisker plot
+title = paste ("GSE30272", "/", annotation(gset), sep ="")
+boxplot(ex, boxwex=0.7, notch=T, main=title, outline=FALSE, las=2)
+
+# expression value distribution plot
+title = paste ("GSE30272", "/", annotation(gset), " value distribution", sep ="")
+plotDensities(ex, main=title, legend=F)
+
+# mean-variance trend
+ex = na.omit(ex) # eliminate rows with NAs
+plotSA(lmFit(ex), main="Mean variance trend, GSE30272")
+
+# UMAP plot (multi-dimensional scaling)
+ex = ex[!duplicated(ex), ]  # remove duplicates
+ump = umap(t(ex), n_neighbors = 15, random_state = 123)
+plot(ump$layout, main="UMAP plot, nbrs=15", xlab="", ylab="", pch=20, cex=1.5)
+library("maptools")  # point labels without overlaps
+pointLabel(ump$layout, method="SANN", cex=0.6)
+
+# data_exp = read.csv(file = here("input", "GSE30272_ExprsMtxCleanedN269_31SVN.csv"))
+# colnames(data_exp)[1] = "probe_id"
+
+# metadata annotating probe ids to genes https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GPL4611
 annot = read.csv(file = here("input", "GSE30272_annot.csv"))
 
-data_exp %<>% as.data.frame() %>%
+# format expression dataframe 
+data_exp = ex %>% as.data.frame() %>% 
+  rownames_to_column(var = "probe_id") %>%
   mutate(probe_id = as.character(probe_id)) %>%
   mutate(gene_name = annot$Gene_Symbol[match(probe_id, annot$ID)]) %>%
   dplyr::select(gene_name, probe_id, everything())
@@ -131,28 +159,7 @@ rownames(data_exp) = NULL
 data_exp %<>% filter(probe_id %in% select.rows$group2row[,2]) %>%
   dplyr::select(-probe_id) 
 
-# box-and-whisker plot
-title = paste ("GSE30272", "/", annotation(gset), sep ="")
-boxplot(data_exp[-1], boxwex=0.7, notch=T, main=title, outline=FALSE, las=2)
-
-# expression value distribution plot
-par(mar=c(4,4,2,1))
-title = paste ("GSE30272", "/", annotation(gset), " value distribution", sep ="")
-plotDensities(data_exp[-1], main=title, legend=F)
-
-# mean-variance trend
-plotSA(lmFit(data_exp[-1]), main="Mean variance trend, GSE30272")
-
-# UMAP plot (multi-dimensional scaling)
-ump = umap(t(data_exp[-1]), n_neighbors = 15, random_state = 123)
-plot(ump$layout, main="UMAP plot, nbrs=15", xlab="", ylab="", pch=20, cex=1.5)
-
-# Merge gene expression and meta dataframes
-data_comb = data_exp %>%   
-  column_to_rownames(var = "gene_name") %>%
-  t() %>% as.data.frame() %>%
-  rownames_to_column(var = "sample_id")
-
+# save
 data_comb = inner_join(data_meta, data_comb, by = 'sample_id')
 write_rds(data_comb, file = here("output", "GSE30272_out.rds"))
 
