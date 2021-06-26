@@ -41,6 +41,7 @@ library(broom)
 library(annotationTools)
 library(maptools)
 library(RCurl)
+library(sva)
 ```
 
 # Load and process metadata
@@ -76,7 +77,7 @@ colnames(data_meta) = c("geo_accession","sample_id","ph","age_years","sex","pmi"
 data_meta %<>% relocate(ph, .after = rin)
 
 # Get sample ids for prenatal samples
-postnatal_samples = data_meta %>% filter(age_years > 15) %>% pull(sample_id)
+postnatal_samples = data_meta %>% filter(age_years > 15) %>% pull(geo_accession)
 
 # View distribution of ages 
 ggplot(data_meta, aes(age_years)) + 
@@ -87,7 +88,7 @@ ggplot(data_meta, aes(age_years)) +
 ![](MGP-GSE30272_files/figure-html/unnamed-chunk-2-1.png)<!-- -->
 
 ```r
-ggplot(data_meta %>% filter(sample_id %in% postnatal_samples), aes(age_years)) + 
+ggplot(data_meta %>% filter(geo_accession %in% postnatal_samples), aes(age_years)) + 
   geom_histogram(bins = 80) +
   theme_bw()
 ```
@@ -112,17 +113,54 @@ paste("sample age sd: ", sd(unlist(data_meta %>% filter(age_years > 15) %>% pull
 
 # Load and process expression data
 
-This is a version of the data tuned by the original authors to identifying canonical patterns of gene expression across the lifespan (at the expense of individual variation). It expands on previous modeling (Colantuoni 2011, PMID: 22031444) of age patterns across the lifespan in several key ways (manuscript in preparation): 1) We applied splines to capture non-linear gene expression effects while ensuring patterns of gene expression are continuous across the lifespan. The previous analysis used age by decade interaction terms, which are not necessarily continuous. 2) We estimated and adjusted for a much higher number of SVs. The previous analysis used only 2 SVs, here we allowed SVA to automatically determine this number: 31 SVs were used. This much increased "cleaning" further tuned this dataset to age effects. Hence, this newly processed data should only be used for the estimation of canonical, mean patterns of expression across the lifetime. 3) We regressed out SVs while allowing the effects of age and mean gene expression (the intercept) to remain in the data. Previously, SVs were regressed out while ignoring possible correlation between SVs and age, potentially obscuring some age effects. Specifically, using SVA, we employ a 2nd degree basis spline with knots at birth, 1, 10, 20, and 50 years [8 degrees of freedom], i.e. a curve fit to expression across age within each age range between these knots. Each model also allowed an offset at birth, because there were no samples in the third trimester of fetal life
-
 
 ```r
-# Cleaned data provided by the authors https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE30272
-data_exp = read.csv(file = here("input", "GSE30272_ExprsMtxCleanedN269_31SVN.csv"))
-colnames(data_exp)[1] = "probe_id"
-# Metadata annotating probe ids to genes https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GPL4611
+# get expression
+ex = exprs(gset)
+# log2 transform
+qx = as.numeric(quantile(ex, c(0., 0.25, 0.5, 0.75, 0.99, 1.0), na.rm=T))
+LogC = (qx[5] > 100) ||
+          (qx[6]-qx[1] > 50 && qx[2] > 0)
+if (LogC) { ex[which(ex <= 0)] = NaN
+  ex = log2(ex) }
+
+# box-and-whisker plot
+title = paste ("GSE30272 before ComBat", "/", annotation(gset), sep ="")
+boxplot(ex, boxwex=0.7, notch=T, main=title, outline=FALSE, las=2)
+```
+
+![](MGP-GSE30272_files/figure-html/unnamed-chunk-3-1.png)<!-- -->
+
+```r
+# remove batch-effects 
+ex = ComBat(dat = ex,
+            batch = data_meta$batch)
+
+# box-and-whisker plot
+title = paste ("GSE30272 after ComBat", "/", annotation(gset), sep ="")
+boxplot(ex, boxwex=0.7, notch=T, main=title, outline=FALSE, las=2)
+```
+
+![](MGP-GSE30272_files/figure-html/unnamed-chunk-3-2.png)<!-- -->
+
+```r
+# expression value distribution plot
+title = paste ("GSE30272", "/", annotation(gset), " value distribution", sep ="")
+plotDensities(ex, main=title, legend=F)
+```
+
+![](MGP-GSE30272_files/figure-html/unnamed-chunk-3-3.png)<!-- -->
+
+```r
+# data_exp = read.csv(file = here("input", "GSE30272_ExprsMtxCleanedN269_31SVN.csv"))
+# colnames(data_exp)[1] = "probe_id"
+
+# metadata annotating probe ids to genes https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GPL4611
 annot = read.csv(file = here("input", "GSE30272_annot.csv"))
 
-data_exp %<>% as.data.frame() %>%
+# format expression dataframe 
+data_exp = ex %>% as.data.frame() %>% 
+  rownames_to_column(var = "probe_id") %>%
   mutate(probe_id = as.character(probe_id)) %>%
   mutate(gene_name = annot$Gene_Symbol[match(probe_id, annot$ID)]) %>%
   dplyr::select(gene_name, probe_id, everything())
@@ -146,45 +184,14 @@ rownames(data_exp) = NULL
 data_exp %<>% filter(probe_id %in% select.rows$group2row[,2]) %>%
   dplyr::select(-probe_id) 
 
-# box-and-whisker plot
-title = paste ("GSE30272", "/", annotation(gset), sep ="")
-boxplot(data_exp[-1], boxwex=0.7, notch=T, main=title, outline=FALSE, las=2)
-```
-
-![](MGP-GSE30272_files/figure-html/unnamed-chunk-3-1.png)<!-- -->
-
-```r
-# expression value distribution plot
-par(mar=c(4,4,2,1))
-title = paste ("GSE30272", "/", annotation(gset), " value distribution", sep ="")
-plotDensities(data_exp[-1], main=title, legend=F)
-```
-
-![](MGP-GSE30272_files/figure-html/unnamed-chunk-3-2.png)<!-- -->
-
-```r
-# mean-variance trend
-plotSA(lmFit(data_exp[-1]), main="Mean variance trend, GSE30272")
-```
-
-![](MGP-GSE30272_files/figure-html/unnamed-chunk-3-3.png)<!-- -->
-
-```r
-# UMAP plot (multi-dimensional scaling)
-ump = umap(t(data_exp[-1]), n_neighbors = 15, random_state = 123)
-plot(ump$layout, main="UMAP plot, nbrs=15", xlab="", ylab="", pch=20, cex=1.5)
-```
-
-![](MGP-GSE30272_files/figure-html/unnamed-chunk-3-4.png)<!-- -->
-
-```r
 # Merge gene expression and meta dataframes
 data_comb = data_exp %>%   
   column_to_rownames(var = "gene_name") %>%
   t() %>% as.data.frame() %>%
-  rownames_to_column(var = "sample_id")
+  rownames_to_column(var = "geo_accession")
 
-data_comb = inner_join(data_meta, data_comb, by = 'sample_id')
+# save
+data_comb = inner_join(data_meta, data_comb, by = 'geo_accession')
 write_rds(data_comb, file = here("output", "GSE30272_out.rds"))
 ```
 
@@ -193,7 +200,7 @@ write_rds(data_comb, file = here("output", "GSE30272_out.rds"))
 
 ```r
 # Load in marker genes
-marker_data = read.csv("https://github.com/sonnyc247/MarkerSelection/raw/master/Data/Outputs/CSVs_and_Tables/Markers/MTG_and_CgG_lfct2/new_MTGnCgG_lfct2.5_results.csv")
+marker_data = read.csv("https://raw.githubusercontent.com/sonnyc247/MarkerSelection/master/Data/Outputs/CSVs_and_Tables/Markers/All_hodge_regions/new_ALLReg_results_ITexpand_WL35IT_lfct15_minpct25_dup.csv")
 
 # Manually add inhibitory/excitatory suffix to subclass labels 
 marker_data %<>%
@@ -204,13 +211,14 @@ marker_data %<>%
     subclass == "L5/6 IT Car3" ~ "Exc",
     subclass == "VIP" ~ "Inh",
     subclass == "L6 CT" ~ "Exc",
-    subclass == "IT"  ~ "Exc",
+    subclass == "L6 IT"  ~ "Exc",
     subclass == "L6b" ~ "Exc",
     subclass == "PVALB" ~ "Inh",
     subclass == "L5/6 NP" ~ "Exc",
     subclass == "SST" ~ "Inh",
-    subclass == "L4 IT" ~ "Exc"
-  )) %>% 
+    subclass == "L4 IT" ~ "Exc",
+    subclass == "L3/5 IT" ~ "Exc",
+    subclass == "L2/3 IT" ~ "Exc")) %>% 
   relocate(class, .before = "subclass") %>%
   unite(subclass, c(class, subclass), sep = "_", remove = F, na.rm = T)
 marker_data$subclass = gsub(" ", "_", marker_data$subclass)
@@ -221,7 +229,7 @@ paste("marker matches in data: ", length(intersect(unlist(data_exp$gene_name), u
 ```
 
 ```
-## [1] "marker matches in data:  944 / 1357"
+## [1] "marker matches in data:  5229 / 12862"
 ```
 
 ```r
@@ -243,24 +251,18 @@ estimations =  mgpEstimate(
   groups = NULL, # if there are experimental groups provide them here. if not desired set to NULL
   seekConsensus = FALSE, # ensures gene rotations are positive in both of the groups
   removeMinority = TRUE)
-# Lost cell types 
-setdiff(cell_types, names(estimations$estimates))
-```
 
-```
-## character(0)
-```
-
-```r
 # Merge cell type proportions with sample metadata
 mgp_estimates = as.data.frame(estimations$estimates) %>%
-  rownames_to_column(var = "sample_id")
-mgp_df = inner_join(data_meta, mgp_estimates, by = "sample_id") %>%
+  rownames_to_column(var = "geo_accession")
+mgp_df = inner_join(data_meta, mgp_estimates, by = "geo_accession") %>%
   pivot_longer(-colnames(data_meta),
                names_to = "cell_type",
                values_to = "cell_proportion")
+# fix labels 
+mgp_df$cell_type = gsub("\\.", "/", mgp_df$cell_type)
 
-plot_genes = c("Exc_IT","Inh_SST","Oligodendrocyte")
+plot_genes = c("Exc_L2/3_IT","Inh_SST","Oligodendrocyte")
 plot_list = list()
 
 for(i in 1:length(plot_genes)){
